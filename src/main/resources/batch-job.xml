@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:batch="http://www.springframework.org/schema/batch"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+           http://www.springframework.org/schema/beans/spring-beans.xsd
+           http://www.springframework.org/schema/batch
+           http://www.springframework.org/schema/batch/spring-batch.xsd">
+
+    <import resource="context.xml"/>
+    <import resource="database.xml"/>
+
+    <bean id="userItemReader" class="org.springframework.batch.item.database.JdbcCursorItemReader" scope="step">
+        <property name="dataSource" ref="dataSource"/>
+        <property name="sql" value=" SELECT * FROM users "/>
+        <property name="rowMapper" ref="userRowMapper"/>
+    </bean>
+
+    <bean id="flowDecider" class="com.pm.spring.batch.MyFlowDecider"/>
+    <bean id="userRowMapper" class="com.pm.spring.batch.mapper.UserRowMapper" scope="prototype"/>
+    <bean id="userItemProcessor" class="com.pm.spring.batch.UserItemProcessor"/>
+    <bean id="userItemWriter"  class="com.pm.spring.batch.UserItemWriter"/>
+    <bean id="failureTasklet" class="com.pm.spring.batch.ErrorHandlerTasklet"/>
+
+    <batch:step id="successStep">
+        <batch:tasklet>
+            <batch:chunk reader="userItemReader" processor="userItemProcessor" writer="userItemWriter" commit-interval="10"/>
+        </batch:tasklet>
+    </batch:step>
+
+    <batch:step id="exitStep">
+        <batch:tasklet ref="failureTasklet"/>
+    </batch:step>
+
+
+    <batch:job id="userJob">
+        <batch:decision id="decider" decider="flowDecider">
+            <batch:next on="FAILED"  to="runExitStep" />
+            <batch:next on="SUCCESS" to="runSuccessStep" />
+        </batch:decision>
+
+        <batch:step id="runExitStep" parent="exitStep" />
+        <batch:step id="runSuccessStep" parent="successStep" />
+    </batch:job>
+
+</beans>
